@@ -8,7 +8,6 @@
 
 import requests
 
-
 from .vk_api import VkApi, VkApiMethod
 
 
@@ -35,11 +34,7 @@ class VkUpload(object):
                 'The arg should be VkApi or VkApiMethod instance'
             )
 
-        if isinstance(vk, VkApiMethod):
-            self.vk = vk
-        else:
-            self.vk = vk.get_api()
-
+        self.vk = vk if isinstance(vk, VkApiMethod) else vk.get_api()
         self.http = requests.Session()
         self.http.headers.pop('user-agent')
 
@@ -142,9 +137,7 @@ class VkUpload(object):
         crop_params = {}
 
         if crop_x is not None and crop_y is not None and crop_width is not None:
-            crop_params['_square_crop'] = '{},{},{}'.format(
-                crop_x, crop_y, crop_width
-            )
+            crop_params['_square_crop'] = f'{crop_x},{crop_y},{crop_width}'
 
         response = self.vk.photos.getOwnerPhotoUploadServer(**values)
         url = response['upload_url']
@@ -380,6 +373,32 @@ class VkUpload(object):
             ).json())
             return response
 
+    def thumb_video(self, photo_path: str, owner_id: int, video_id: int):
+        """
+        Загружает обложку для видео и применяет ее.
+
+        :param photo_path: Путь к файлу изображения, которое будет использовано в качестве обложки.
+        :type photo_path: str
+
+        :param owner_id: Идентификатор пользователя (положительное число) или группы (отрицательное число), 
+                        для которой загружается миниатюра.
+        :type owner_id: int
+
+        :param video_id: Идентификатор видео.
+        :type video_id: int
+        """
+        
+        response = self.vk.video.getThumbUploadUrl(owner_id=owner_id)
+        upload_url = response.pop('upload_url')
+
+        with FilesOpener(photo_path, key_format='file') as file:
+            upload_response = self.http.post(upload_url, files=file)
+            
+        response = self.vk.video.saveUploadedThumb(owner_id=owner_id,
+                                                   thumb_json=upload_response.text,
+                                                   video_id=video_id,
+                                                   set_thumb=1)
+        return response
 
     def document(self, doc, title=None, tags=None, group_id=None,
                  to_wall=False, message_peer_id=None, doc_type=None):
@@ -595,19 +614,14 @@ class FilesOpener(object):
             if hasattr(file, 'read'):
                 f = file
 
-                if hasattr(file, 'name'):
-                    filename = file.name
-                else:
-                    filename = '.jpg'
+                filename = file.name if hasattr(file, 'name') else '.jpg'
             else:
                 filename = file
                 f = open(filename, 'rb')
                 self.opened_files.append(f)
 
             ext = filename.split('.')[-1]
-            files.append(
-                (self.key_format.format(x), ('file{}.{}'.format(x, ext), f))
-            )
+            files.append((self.key_format.format(x), (f'file{x}.{ext}', f)))
 
         return files
 

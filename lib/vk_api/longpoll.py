@@ -416,14 +416,10 @@ class Event(object):
             self.user_id = self.peer_id
 
     def _parse_message_flags(self):
-        self.message_flags = set(
-            x for x in VkMessageFlag if self.flags & x
-        )
+        self.message_flags = {x for x in VkMessageFlag if self.flags & x}
 
     def _parse_peer_flags(self):
-        self.peer_flags = set(
-            x for x in VkPeerFlag if self.flags & x
-        )
+        self.peer_flags = {x for x in VkPeerFlag if self.flags & x}
 
     def _parse_message(self):
         if self.type is VkEventType.MESSAGE_NEW:
@@ -508,7 +504,7 @@ class VkLongPoll(object):
         self.key = None
         self.server = None
         self.ts = None
-        self.pts = mode & VkLongpollMode.GET_PTS
+        self.pts = None
 
         self.session = requests.Session()
 
@@ -520,23 +516,20 @@ class VkLongPoll(object):
     def update_longpoll_server(self, update_ts=True):
         values = {
             'lp_version': '3',
-            'need_pts': self.pts
+            'need_pts': 1
         }
-
         if self.group_id:
             values['group_id'] = self.group_id
-            
-        response = self.vk.method('messages.getLongPollServer', values)
 
+        response = self.vk.method('messages.getLongPollServer', values)
         self.key = response['key']
         self.server = response['server']
 
-        self.url = 'https://' + self.server
+        self.url = f'https://{self.server}'
 
         if update_ts:
             self.ts = response['ts']
-            if self.pts:
-                self.pts = response['pts']
+            self.pts = response.get('pts')
 
     def check(self):
         """ Получить события от сервера один раз
@@ -560,8 +553,7 @@ class VkLongPoll(object):
 
         if 'failed' not in response:
             self.ts = response['ts']
-            if self.pts:
-                self.pts = response['pts']
+            self.pts = response.get('pts')
 
             events = [
                 self._parse_event(raw_event)
@@ -616,5 +608,4 @@ class VkLongPoll(object):
         """
 
         while True:
-            for event in self.check():
-                yield event
+            yield from self.check()
