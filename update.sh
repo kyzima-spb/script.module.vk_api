@@ -1,5 +1,7 @@
 #!/usr/bin/env sh
 
+DOWNLOAD_BASE_URL='https://github.com/python273/vk_api/archive/refs'
+#DOWNLOAD_BASE_URL='https://github.com/kyzima-spb/vk_api/archive/refs'
 PACKAGE_VERSION="${1:-master}"
 workdir="$(pwd)"
 
@@ -11,15 +13,15 @@ workdir="$(pwd)"
 #	&& rm "lib/vk_api-${PACKAGE_VERSION}.tar.gz"
 
 case "$PACKAGE_VERSION" in
-  v*) downloadUrl="https://github.com/python273/vk_api/archive/refs/tags/${PACKAGE_VERSION}.zip" ;;
-  *) downloadUrl="https://github.com/python273/vk_api/archive/refs/heads/${PACKAGE_VERSION}.zip" ;;
+  v*) downloadUrl="${DOWNLOAD_BASE_URL}/tags/${PACKAGE_VERSION}.zip" ;;
+  *) downloadUrl="${DOWNLOAD_BASE_URL}/heads/${PACKAGE_VERSION}.zip" ;;
 esac
 
 wget "$downloadUrl" \
   && unzip "${PACKAGE_VERSION}.zip" \
   && cd "vk_api-${PACKAGE_VERSION}" \
   && python3 setup.py build \
-  && rm -rf ../lib \
+  && rm -rf ../lib/jconfig ../lib/vk_api \
   && mv build/lib ../ \
   && cd "$workdir" \
   && rm -rf "vk_api-${PACKAGE_VERSION}" "${PACKAGE_VERSION}.zip"
