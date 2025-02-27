@@ -1,3 +1,4 @@
+import typing as t
 import re
 
 import vk_api
@@ -46,6 +47,38 @@ class VkVideo:
 
         return self._session.storage.web_token['access_token']
 
+    def _select_best_quality(
+        self,
+        files: t.Dict[str, str],
+        quality: int = -1,
+        preferred_order: t.Tuple[str, ...] = (
+            'dash_ondemand', 'hls_ondemand', 'hls', 'dash_sep', 'dash_webm', 'mp4', 'failover_host',
+        ),
+    ) -> t.Tuple[str, str]:
+        """Returns the format name and URL to the video in the best quality."""
+        for fmt in preferred_order:
+            if fmt in files:
+                return fmt, files[fmt]
+
+            if fmt == 'mp4':
+                quality_list = sorted(
+                    (i for i in files.keys() if i.startswith('mp4_')),
+                    key=lambda x: int(x.split('_')[1]),
+                    reverse=True,
+                )
+
+                if quality < 0:
+                    fmt = quality_list[0]
+                    return fmt, files[fmt]
+
+                quality = max(144, quality)
+
+                for i in quality_list:
+                    if int(i.split('_')[1]) <= quality:
+                        return i, files[i]
+
+        raise ValueError('Unknown video format or quality.')
+
     @staticmethod
     def parse_video_url(url: str) -> tuple[int, int]:
         """Returns the owner ID and video ID from the URL."""
@@ -54,18 +87,25 @@ class VkVideo:
         if not found or len(found) != 2:
             raise ValueError('Incorrect video URL')
 
-        owner_id, video_id = found
+        owner_id, video_id = (int(i) for i in found)
 
-        return int(owner_id), int(video_id)
+        return owner_id, video_id
 
-    def get_video_by_id(self, owner_id: int, video_id: int, access_key: str = ''):
+    def get_video_by_id(
+        self,
+        owner_id: int,
+        video_id: int,
+        access_key: str = '',
+        quality: int = -1,
+    ):
         """
-        Получить видеозапись по ID.
+        Get video with specified quality.
 
         Arguments:
-            owner_id (in): ID владельца (отрицательные значения для групп).
-            video_id (int): ID видео.
-            access_key (str): Ключ доступа к объекту.
+            owner_id (in): Owner ID (negative values for groups).
+            video_id (int): Video ID.
+            access_key (str): Access key to the object.
+            quality (int): Video quality. A value of -1 will return the maximum.
         """
         resp_data = self._session.method('video.getVideoDiscover', {
             'v': self._api_version,
@@ -79,4 +119,6 @@ class VkVideo:
             'fields': 'screen_name,photo_50,photo_100,is_nft,verified,friend_status',
             'access_token': self._get_web_token(),
         })
-        return resp_data['current_video']
+        video = resp_data['current_video']
+        video['best_fmt'], video['best_url'] = self._select_best_quality(video['files'], quality=quality)
+        return video
