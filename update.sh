@@ -22,6 +22,6 @@ wget "$downloadUrl" \
   && cd "vk_api-${PACKAGE_VERSION}" \
   && python3 setup.py build \
   && rm -rf ../lib/jconfig ../lib/vk_api \
-  && mv build/lib ../ \
+  && mv build/lib/* ../lib \
   && cd "$workdir" \
   && rm -rf "vk_api-${PACKAGE_VERSION}" "${PACKAGE_VERSION}.zip"
